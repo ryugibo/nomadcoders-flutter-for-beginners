@@ -10,18 +10,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const twentyFiveMinutes = 1500;
-  int totalSeconds = twentyFiveMinutes;
+  static const baseTimeList = [10, 900, 1200, 1500, 1800, 2100];
+  static const restTime = 300;
+  int baseTimeIndex = 0;
+  late int totalSeconds = baseTimeList[baseTimeIndex];
   bool isRunning = false;
+  bool isResting = false;
+  bool isSuccessRound = false;
   int totalPomodoros = 0;
-  late Timer timer;
+  Timer? timer;
 
-  void onTick(Timer timer) {
+  void onTickRun(Timer timer) {
     if (totalSeconds == 0) {
       setState(() {
         totalPomodoros = totalPomodoros + 1;
+        isSuccessRound = true;
         isRunning = false;
-        totalSeconds = twentyFiveMinutes;
+        isResting = false;
+        totalSeconds = baseTimeList[baseTimeIndex];
+      });
+      timer.cancel();
+    } else {
+      setState(() {
+        totalSeconds = totalSeconds - 1;
+      });
+    }
+  }
+
+  void onTickRest(Timer timer) {
+    if (totalSeconds == 0) {
+      setState(() {
+        isRunning = false;
+        isResting = false;
+        totalSeconds = baseTimeList[baseTimeIndex];
       });
       timer.cancel();
     } else {
@@ -36,15 +57,16 @@ class _HomeScreenState extends State<HomeScreen> {
       const Duration(
         seconds: 1,
       ),
-      onTick,
+      onTickRun,
     );
     setState(() {
       isRunning = true;
+      isSuccessRound = false;
     });
   }
 
   void onPressedPause() {
-    timer.cancel();
+    timer?.cancel();
     setState(() {
       isRunning = false;
     });
@@ -53,9 +75,51 @@ class _HomeScreenState extends State<HomeScreen> {
   void onPressedReset() {
     setState(() {
       isRunning = false;
-      totalSeconds = twentyFiveMinutes;
+      totalSeconds = baseTimeList[baseTimeIndex];
     });
-    timer.cancel();
+    timer?.cancel();
+  }
+
+  void onPressedTimeUp() {
+    setState(() {
+      baseTimeIndex += 1;
+      if (baseTimeIndex == baseTimeList.length) {
+        baseTimeIndex = 0;
+      }
+      totalSeconds = baseTimeList[baseTimeIndex];
+    });
+  }
+
+  void onPressedTimeDown() {
+    setState(() {
+      baseTimeIndex -= 1;
+      if (baseTimeIndex == -1) {
+        baseTimeIndex = baseTimeList.length - 1;
+      }
+      totalSeconds = baseTimeList[baseTimeIndex];
+    });
+  }
+
+  void onPressBreak() {
+    timer = Timer.periodic(
+      const Duration(
+        seconds: 1,
+      ),
+      onTickRest,
+    );
+    setState(() {
+      totalSeconds = restTime;
+      isSuccessRound = false;
+      isResting = true;
+    });
+  }
+
+  void onPressSkipRest() {
+    timer?.cancel();
+    setState(() {
+      isResting = false;
+      totalSeconds = baseTimeList[baseTimeIndex];
+    });
   }
 
   String format(int seconds) {
@@ -66,41 +130,82 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).backgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.background,
       body: Column(
         children: [
           Flexible(
-            flex: 1,
+            flex: 2,
             child: Container(
               alignment: Alignment.bottomCenter,
-              child: Text(
-                format(totalSeconds),
-                style: TextStyle(
-                  color: Theme.of(context).cardColor,
-                  fontSize: 89,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                children: [
+                  IconButton(
+                    enableFeedback: false,
+                    onPressed: isRunning || isResting ? null : onPressedTimeUp,
+                    icon: const Icon(Icons.arrow_drop_up_rounded),
+                    iconSize: 58.0,
+                  ),
+                  Text(
+                    format(totalSeconds),
+                    style: TextStyle(
+                      color: Theme.of(context).cardColor,
+                      fontSize: 85,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  IconButton(
+                    enableFeedback: false,
+                    onPressed:
+                        isRunning || isResting ? null : onPressedTimeDown,
+                    icon: const Icon(Icons.arrow_drop_down_rounded),
+                    iconSize: 58.0,
+                  ),
+                ],
               ),
             ),
           ),
           Flexible(
-            flex: 3,
+            flex: 2,
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  IconButton(
-                    color: Theme.of(context).cardColor,
-                    iconSize: 120,
-                    onPressed: isRunning ? onPressedPause : onPressedStart,
-                    icon: Icon(
-                      isRunning
-                          ? Icons.pause_circle_outline
-                          : Icons.play_circle_outline,
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          color: Theme.of(context).cardColor,
+                          iconSize: 80,
+                          onPressed: isResting
+                              ? null
+                              : isRunning
+                                  ? onPressedPause
+                                  : onPressedStart,
+                          icon: Icon(
+                            isRunning
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline,
+                          ),
+                        ),
+                        IconButton(
+                          color: Theme.of(context).cardColor,
+                          iconSize: 80,
+                          onPressed: isRunning
+                              ? null
+                              : isResting
+                                  ? onPressSkipRest
+                                  : isSuccessRound
+                                      ? onPressBreak
+                                      : null,
+                          icon: Icon(
+                            isResting
+                                ? Icons.fast_forward
+                                : Icons.free_breakfast_outlined,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(
-                    height: 30,
                   ),
                   IconButton(
                     color: Theme.of(context).cardColor,
@@ -126,13 +231,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'Pomodoros',
+                            'ROUND',
                             style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w600,
                                 color: Theme.of(context)
                                     .textTheme
-                                    .headline1!
+                                    .displayLarge!
                                     .color),
                           ),
                           Text(
@@ -142,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontWeight: FontWeight.w600,
                                 color: Theme.of(context)
                                     .textTheme
-                                    .headline1!
+                                    .displayLarge!
                                     .color),
                           ),
                         ],
